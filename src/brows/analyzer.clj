@@ -41,6 +41,19 @@
    :form thing
    :env env})
 
+(defmethod parse 'recur
+  [_ [_ & exprs :as form] env]
+  (let [exprs (disallowing-recur (mapv #(analyze % env) exprs))
+        frame (first *recur-frames*)]
+    (assert frame "Cannot recur")
+    (assert (= (count exprs)
+               (count (:exprs frame))))
+    {:op :recur
+     :frame frame
+     :bind exprs
+     :env env
+     :form form}))
+
 (extend-protocol Analyzable
 
   IPersistentVector
@@ -53,9 +66,10 @@
 
   IPersistentMap
   (analyze [form env]
-    (let [kw-pairs (map (fn [[k v]]
-                          [(disallowing-recur (analyze k env))
-                           (disallowing-recur (analyze v env))]) form)]
+    (let [kw-pairs (disallowing-recur
+                     (map (fn [[k v]]
+                            [(analyze k env)
+                             (analyze v env)]) form))]
       {:op :map
        :pairs kw-pairs
        :form form
