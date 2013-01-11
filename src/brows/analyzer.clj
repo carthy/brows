@@ -54,7 +54,25 @@
      :env env
      :form form}))
 
+(defn ^:private keys-type [keys]
+  (cond
+    (every? integer? keys)
+    :numeric
+
+    (every? (some-fn string? keyword? symbol?) keys)
+    :simple
+
+    :else
+    :complex))
+
 (extend-protocol Analyzable
+
+  Symbol
+  (analyze [form env])
+
+  ;; Function call
+  ISeq
+  (analyze [form env])
 
   IPersistentVector
   (analyze [form env]
@@ -66,17 +84,17 @@
 
   IPersistentMap
   (analyze [form env]
-    (let [kw-pairs (disallowing-recur
+    (let [keys (keys form)
+          kv-pairs (disallowing-recur
                      (map (fn [[k v]]
                             [(analyze k env)
                              (analyze v env)]) form))]
       {:op :map
-       :pairs kw-pairs
+       :pairs kv-pairs
+       :keys keys
+       :keys-type (keys-type keys)
        :form form
        :env env}))
-
-  ISeq
-  (analyze [form env])
 
   IPersistentSet
   (analyze [form env]
@@ -86,8 +104,7 @@
        :items items
        :env env}))
 
-  Symbol
-  (analyze [form env])
+  ;; What about the other collection types we added?
 
   Object
   (analyze [form env]
