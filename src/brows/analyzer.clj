@@ -109,6 +109,7 @@
 (defn analyze [form env]
   (let [ret (-analyze form env)]
     (assoc ret
-      :meta (analyze (meta form) env)
+      :meta (when-let [m (meta form)]
+              (analyze m env))
       :form form
-      :env env)))
+      :env  env)))
