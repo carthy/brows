@@ -28,18 +28,18 @@
             (str "Too many arguments to if: " element-c))
     (assert (< element-c 3)
            (str "Too few arguments to if: " )))
-  {:op :if
+  {:op   :if
    :test (disallowing-recur (analyze test env))
    :then (analyze then env)
    :else (analyze else env)
-   :env env
+   :env  env
    :form form})
 
 (defmethod parse 'quote
   [_ [_ thing] env]
-  {:op :const
+  {:op   :const
    :form thing
-   :env env})
+   :env  env})
 
 (defmethod parse 'recur
   [_ [_ & exprs :as form] env]
@@ -48,11 +48,11 @@
     (assert frame "Cannot recur")
     (assert (= (count exprs)
                (count (:exprs frame))))
-    {:op :recur
+    {:op    :recur
      :frame frame
-     :bind exprs
-     :env env
-     :form form}))
+     :bind  exprs
+     :env   env
+     :form  form}))
 
 (defn ^:private keys-type [keys]
   (cond
@@ -77,10 +77,10 @@
   IPersistentVector
   (analyze [form env]
     (let [items (map #(analyze % env) form)]
-      {:op :vector
-       :form form
+      {:op    :vector
+       :form  form
        :items items
-       :env env}))
+       :env   env}))
 
   IPersistentMap
   (analyze [form env]
@@ -89,25 +89,25 @@
                      (map (fn [[k v]]
                             [(analyze k env)
                              (analyze v env)]) form))]
-      {:op :map
-       :pairs kv-pairs
-       :keys keys
+      {:op        :map
+       :pairs     kv-pairs
+       :keys      keys ;; or should we return the analyzed keys?
        :keys-type (keys-type keys)
-       :form form
-       :env env}))
+       :form      form
+       :env       env}))
 
   IPersistentSet
   (analyze [form env]
     (let [items (map #(analyze % env) form)]
-      {:op :set
-       :form form
+      {:op    :set
+       :form  form
        :items items
-       :env env}))
+       :env   env}))
 
   ;; What about the other collection types we added?
 
   Object
   (analyze [form env]
-    {:op :const
+    {:op   :const
      :form form
-     :env env}))
+     :env  env}))
