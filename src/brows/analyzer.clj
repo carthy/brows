@@ -76,7 +76,7 @@
 
   IPersistentVector
   (analyze [form env]
-    (let [items (disallowing-recur (map #(analyze % env) form))]
+    (let [items (disallowing-recur (mapv #(analyze % env) form))]
       {:op    :vector
        :form  form
        :items items
@@ -86,7 +86,7 @@
   (analyze [form env]
     (let [keys (keys form)
           kv-pairs (disallowing-recur
-                     (map (fn [[k v]]
+                     (mapv (fn [[k v]]
                             [(analyze k env)
                              (analyze v env)]) form))]
       {:op        :map
@@ -98,7 +98,7 @@
 
   IPersistentSet
   (analyze [form env]
-    (let [items (disallowing-recur (map #(analyze % env) form))]
+    (let [items (disallowing-recur (mapv #(analyze % env) form))]
       {:op    :set
        :form  form
        :items items
