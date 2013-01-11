@@ -80,6 +80,7 @@
       {:op    :vector
        :form  form
        :items items
+       :meta  (analyze (meta form) env)
        :env   env}))
 
   IPersistentMap
@@ -94,6 +95,7 @@
        :keys      keys ;; or should we return the analyzed keys?
        :keys-type (keys-type keys)
        :form      form
+       :meta      (analyze (meta form) env)
        :env       env}))
 
   IPersistentSet
@@ -102,6 +104,7 @@
       {:op    :set
        :form  form
        :items items
+       :meta  (analyze (meta form) env)
        :env   env}))
 
   ;; What about the other collection types we added?
@@ -110,4 +113,5 @@
   (analyze [form env]
     {:op   :const
      :form form
+     :meta (analyze (meta form) env)
      :env  env}))
