@@ -76,7 +76,7 @@
 
   IPersistentVector
   (analyze [form env]
-    (let [items (map #(analyze % env) form)]
+    (let [items (disallowing-recur (map #(analyze % env) form))]
       {:op    :vector
        :form  form
        :items items
@@ -98,7 +98,7 @@
 
   IPersistentSet
   (analyze [form env]
-    (let [items (map #(analyze % env) form)]
+    (let [items (disallowing-recur (map #(analyze % env) form))]
       {:op    :set
        :form  form
        :items items
