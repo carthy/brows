@@ -16,9 +16,6 @@
   `(binding [*recur-frames* (cons nil *recur-frames*)]
      ~@body))
 
-(defprotocol Analyzable
-  (analyze [form env]))
-
 (defmulti parse (fn [op & _] op))
 
 (defmethod parse 'if
@@ -65,26 +62,28 @@
     :else
     :complex))
 
+(defprotocol Analyzable
+  (-analyze [form env]))
+
+(declare analyze)
+
 (extend-protocol Analyzable
 
   Symbol
-  (analyze [form env])
+  (-analyze [form env])
 
   ;; Function call
   ISeq
-  (analyze [form env])
+  (-analyze [form env])
 
   IPersistentVector
-  (analyze [form env]
+  (-analyze [form env]
     (let [items (disallowing-recur (mapv #(analyze % env) form))]
       {:op    :vector
-       :form  form
-       :items items
-       :meta  (analyze (meta form) env)
-       :env   env}))
+       :items items}))
 
   IPersistentMap
-  (analyze [form env]
+  (-analyze [form env]
     (let [keys (keys form)
           kv-pairs (disallowing-recur
                      (mapv (fn [[k v]]
@@ -93,25 +92,23 @@
       {:op        :map
        :pairs     kv-pairs
        :keys      keys ;; or should we return the analyzed keys?
-       :keys-type (keys-type keys)
-       :form      form
-       :meta      (analyze (meta form) env)
-       :env       env}))
+       :keys-type (keys-type keys)}))
 
   IPersistentSet
-  (analyze [form env]
+  (-analyze [form env]
     (let [items (disallowing-recur (mapv #(analyze % env) form))]
       {:op    :set
-       :form  form
-       :items items
-       :meta  (analyze (meta form) env)
-       :env   env}))
+       :items items}))
 
   ;; What about the other collection types we added?
 
   Object
-  (analyze [form env]
-    {:op   :const
-     :form form
-     :meta (analyze (meta form) env)
-     :env  env}))
+  (-analyze [form env]
+    {:op :const}))
+
+(defn analyze [form env]
+  (let [ret (-analyze form env)]
+    (assoc ret
+      :meta (analyze (meta form) env)
+      :form form
+      :env env)))
