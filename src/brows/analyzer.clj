@@ -4,6 +4,10 @@
                          ISeq IPersistentSet Symbol LazySeq)))
 (declare analyze)
 (defprotocol Analyzable
+  ;; env is a map containing:
+  ;;  - :locals, a map of local-sym => symbol-map
+  ;;  - :namespace, a symbol indicating the namespace the current form is being analyzed from
+  ;;  - :context, one of :eval, :expr, :statement, :return
   (-analyze [form env]))
 
 (defn ^:private literal-dispatch [class op]
@@ -62,7 +66,7 @@
           ks     (mapv #(analyze % kv-env) keys)
           vs     (mapv #(analyze % kv-env) (vals form))]
       {:op        :map
-       :kesw      ks
+       :keys      ks
        :vals      vs
        :keys-type (keys-type keys)
        :const     (and (every? :literal items)
