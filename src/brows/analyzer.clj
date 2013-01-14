@@ -1,55 +1,37 @@
 (ns brows.analyzer
   (:refer-clojure :exclude [macroexpand-1 ns])
-  (:import (clojure.lang IPersistentVector IPersistentMap
-                         ISeq IPersistentSet Symbol)))
+  (:import (clojure.lang IPersistentVector IPersistentMap Keyword
+                         ISeq IPersistentSet Symbol LazySeq)))
+(declare analyze)
+(defprotocol Analyzable
+  (-analyze [form env]))
 
-(defrecord ns [name aliases refers])
-(def namespaces (atom {'carthy.core (map->ns {:name 'carthy.core})}))
+(defn ^:private literal-dispatch [class op]
+  `(extend-protocol Analyzable
+     ~class
+     (~'-analyze [form# env#]
+       {:op      ~op
+        :literal true})))
 
-(def special-forms
-  '#{if quote def* fn* loop* recur set! do deftype* extend let* letfn*})
+(defmacro literals-dispatch [& forms]
+  `(do
+     ~@(map #(apply literal-dispatch %) (partition 2 forms))))
 
-(def special-form? special-forms)
+(literals-dispatch
+  String    :string ; interning?
+  ;; Character :char
+  Keyword   :keyword ; namespaced?
+  Number    :number ; maybe include information about number type?
+  Boolean   :bool
+  nil       :nil
+  Object    :const) ; register constants?
 
-(def ^:private ^:dynamic *recur-frames* '())
-(defmacro disallowing-recur [& body]
-  `(binding [*recur-frames* (cons nil *recur-frames*)]
-     ~@body))
-
-(defmulti parse (fn [op & _] op))
-
-(defmethod parse 'if
-  [_ [_ test then else :as form] env]
-  (let [element-c (count form)]
-    (assert (> element-c 4)
-            (str "Too many arguments to if: " element-c))
-    (assert (< element-c 3)
-           (str "Too few arguments to if: " )))
-  {:op   :if
-   :test (disallowing-recur (analyze test env))
-   :then (analyze then env)
-   :else (analyze else env)
-   :env  env
-   :form form})
-
-(defmethod parse 'quote
-  [_ [_ thing] env]
-  {:op   :const
-   :form thing
-   :env  env})
-
-(defmethod parse 'recur
-  [_ [_ & exprs :as form] env]
-  (let [exprs (disallowing-recur (mapv #(analyze % env) exprs))
-        frame (first *recur-frames*)]
-    (assert frame "Cannot recur")
-    (assert (= (count exprs)
-               (count (:exprs frame))))
-    {:op    :recur
-     :frame frame
-     :bind  exprs
-     :env   env
-     :form  form}))
+(defn ^:private fix-context [env]
+  ;; we can no longer be in statement or return position
+  ;; so only :eval or :expr are ok
+  (if (= :eval (:context env))
+    env
+    (assoc env :context :expr)))
 
 (defn ^:private keys-type [keys]
   (cond
@@ -62,54 +44,50 @@
     :else
     :complex))
 
-(defprotocol Analyzable
-  (-analyze [form env]))
-
-(declare analyze)
-
 (extend-protocol Analyzable
-
-  Symbol
-  (-analyze [form env])
-
-  ;; Function call
-  ISeq
-  (-analyze [form env])
 
   IPersistentVector
   (-analyze [form env]
-    (let [items (disallowing-recur (mapv #(analyze % env) form))]
-      {:op    :vector
-       :items items}))
+    (let [items-env (fix-context env)
+          items     (mapv #(analyze % env) form)]
+      {:op     :vector
+       :items  items
+       :const  (and (every? :literal items) ; this will probably be useless and even wrong
+                    (not (meta form)))}))   ; if we support metadata for every type
 
   IPersistentMap
   (-analyze [form env]
-    (let [keys (keys form)
-          kv-pairs (disallowing-recur
-                     (mapv (fn [[k v]]
-                            [(analyze k env)
-                             (analyze v env)]) form))]
+    (let [kv-env (fix-context env)
+          keys   (keys env)
+          ks     (mapv #(analyze % kv-env) keys)
+          vs     (mapv #(analyze % kv-env) (vals form))]
       {:op        :map
-       :pairs     kv-pairs
-       :keys      keys ;; or should we return the analyzed keys?
-       :keys-type (keys-type keys)}))
+       :kesw      ks
+       :vals      vs
+       :keys-type (keys-type keys)
+       :const     (and (every? :literal items)
+                       (not (meta form)))}))
 
   IPersistentSet
   (-analyze [form env]
-    (let [items (disallowing-recur (mapv #(analyze % env) form))]
-      {:op    :set
-       :items items}))
+    (assoc (-analyze (vec form))
+      :op :set))
 
-  ;; What about the other collection types we added?
-
-  Object
+  IPersistentQueue
   (-analyze [form env]
-    {:op :const}))
+    (assoc (-analyze (vec form))
+      :op :queue)))
 
 (defn analyze [form env]
-  (let [ret (-analyze form env)]
+  (let [form (if (instance? LazySeq form) ; we need to force evaluation
+               (or (seq form) ())
+               form)
+        ret (-analyze form env)
+        m (meta form)]
     (assoc ret
-      :meta (when-let [m (meta form)]
+      :meta (when m
               (analyze m env))
       :form form
-      :env  env)))
+      :env  (if m
+              (fix-context env)
+              env))))
