@@ -156,13 +156,28 @@
                 form))
             form))))))
 
+(defmulti parse (fn [op form env] (keyword op)))
+
+(extend-protocol Analyzable
+
+  ISeq
+  (-analyze [form env]
+    (let [o (macroexpand-1 form)]
+      (if (not= o form)
+        (analyze o env)
+        (let [op (first form)]
+          (if (nil? op)
+            (ex-info "Can't call nil" {:form form})
+            (parse (or (specials op) :invoke) form env))))))) ; will eventually handle inlines
+
 (defn analyze [form env]
   (let [form (if (instance? LazySeq form) ; we need to force evaluation
                (or (seq form) ())
                form)
         ret (-analyze form env)
         m (meta form)
-        env (or (:env ret) env)]
+        env (or (:env ret) env)
+        form (or (:form ret) form)]
     (assoc ret
       :meta (when m
               (analyze m env))
