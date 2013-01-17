@@ -1,6 +1,6 @@
 (ns brows.analyzer
   (:refer-clojure :exclude [macroexpand-1 ns find-ns])
-  (:import (clojure.lang IPersistentVector IPersistentMap Keyword
+  (:import (clojure.lang IPersistentVector IPersistentMap Keyword IDeref
                          ISeq IPersistentSet PersistentQueue Symbol LazySeq)))
 
 ;; name: symbol name of the ns
@@ -11,7 +11,9 @@
 (def namespaces (atom {'carthy.core (map->ns {:name 'carthy.core})}))
 
 ;; var would collide with the `var` special form
-(defrecord var- [root name ns])
+(defrecord var- [root name ns]
+  IDeref
+  (deref [this] root)) ;; no thread-local storage for now
 
 (declare analyze)
 (defprotocol Analyzable
@@ -59,6 +61,7 @@
     :else
     :complex))
 
+;; must check for empty
 (extend-protocol Analyzable
 
   IPersistentVector
@@ -93,7 +96,7 @@
   PersistentQueue
   (-analyze [form env]
     (assoc (-analyze (vec form) env)
-      :op :queue)))
+      :op :queue))) ;; IRecord && IType?
 
 (defn find-ns [ns sym]
   (let [curr-ns (get @namespaces ns)
