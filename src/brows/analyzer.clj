@@ -1,7 +1,7 @@
 (ns brows.analyzer
-  (:refer-clojure :exclude [macroexpand-1 ns])
+  (:refer-clojure :exclude [macroexpand-1 ns find-ns])
   (:import (clojure.lang IPersistentVector IPersistentMap Keyword
-                         ISeq IPersistentSet Symbol LazySeq)))
+                         ISeq IPersistentSet PersistentQueue Symbol LazySeq)))
 
 ;; name: symbol name of the ns
 ;; aliases: map of sym -> ns (or maybe ns-sym?)
@@ -10,7 +10,8 @@
 (defrecord ns [name aliases mappings required])
 (def namespaces (atom {'carthy.core (map->ns {:name 'carthy.core})}))
 
-(defrecord var [root name ns])
+;; var would collide with the `var` special form
+(defrecord var- [root name ns])
 
 (declare analyze)
 (defprotocol Analyzable
@@ -71,25 +72,27 @@
 
   IPersistentMap
   (-analyze [form env]
-    (let [kv-env (fix-context env)
-          keys   (keys env)
-          ks     (mapv #(analyze % kv-env) keys)
-          vs     (mapv #(analyze % kv-env) (vals form))]
+    (let [kv-env    (fix-context env)
+          keys      (keys env)
+          ks        (mapv #(analyze % kv-env) keys)
+          vs        (mapv #(analyze % kv-env) (vals form))
+          keys-type (keys-type keys)]
       {:op        :map
        :keys      ks
        :vals      vs
-       :keys-type (keys-type keys)
-       :const     (and (every? :literal items)
+       :keys-type keys-type
+       :const     (and (= :const keys-type)
+                       (every? :literal vals)
                        (not (meta form)))}))
 
   IPersistentSet
   (-analyze [form env]
-    (assoc (-analyze (vec form))
+    (assoc (-analyze (vec form) env)
       :op :set))
 
-  IPersistentQueue
+  PersistentQueue
   (-analyze [form env]
-    (assoc (-analyze (vec form))
+    (assoc (-analyze (vec form) env)
       :op :queue)))
 
 (defn find-ns [ns sym]
@@ -118,7 +121,7 @@
                                                         ; we don't check here since we check when parsing let*
       {:op    :local
        :local local-binding}
-      (if-let [v (resolve-var env sym)]
+      (if-let [v (resolve-var env form)]
         (let [meta (meta v)]
           (if (:macro meta)
             (ex-info "Can't take value of a macro" {:macro (:name meta)})
