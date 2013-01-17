@@ -2,6 +2,14 @@
   (:refer-clojure :exclude [macroexpand-1 ns])
   (:import (clojure.lang IPersistentVector IPersistentMap Keyword
                          ISeq IPersistentSet Symbol LazySeq)))
+
+;; name: symbol name of the ns
+;; aliases: map of sym -> ns (or maybe ns-sym?)
+;; mappings: map of sym -> var
+;; required: set of required namespaces (necessary?)
+(defrecord ns [name aliases mappings required])
+(def namespaces (atom {'carthy.core (map->ns {:name 'carthy.core})}))
+
 (declare analyze)
 (defprotocol Analyzable
   ;; env is a map containing:
@@ -81,6 +89,11 @@
   (-analyze [form env]
     (assoc (-analyze (vec form))
       :op :queue)))
+
+(defn find-ns [ns sym]
+  (let [curr-ns (get @namespaces ns)
+        sym (or (get (:aliases curr-ns) sym) sym)]
+    (get @namespaces sym)))
 
 (defn analyze [form env]
   (let [form (if (instance? LazySeq form) ; we need to force evaluation
