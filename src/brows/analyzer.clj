@@ -113,6 +113,9 @@
           (ex-info "No such var" {:var sym})))
       (ex-info "No such namespace" {:ns (symbol ns)}))))
 
+(defn local-binding [env form]
+  (get-in env [:locals form]))
+
 (extend-protocol Analyzable
 
   Symbol
@@ -129,6 +132,26 @@
             {:op    :var
              :var   (resolve-var env form)}))
         (ex-info "Unable to resolve symbol" {:sym form})))))
+
+(def specials
+  '#{if quote def* fn* loop* recur set! do deftype* extend let* letfn* .})
+
+(defn macroexpand-1 [env form]
+  (let [op (first form)]
+    (if (specials op)
+      form
+      (if-let [v (and (not (local-binding env form))
+                      (resolve-var env op))]
+        (if (:macro (meta v))
+          (apply @v env form (rest form)) ; (m &env &form & args)
+          (if (symbol? op)
+            (let [opname (str op)]
+              (if (= (first opname) \.) ; ns/.sym is not valid.
+                (let [[target & args] (next form)]
+                  (with-meta (list* '. target (symbol (subs opname 1)) args)
+                    (meta form)))
+                form))
+            form))))))
 
 (defn analyze [form env]
   (let [form (if (instance? LazySeq form) ; we need to force evaluation
