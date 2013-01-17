@@ -132,7 +132,8 @@
                (or (seq form) ())
                form)
         ret (-analyze form env)
-        m (meta form)]
+        m (meta form)
+        env (or (:env ret) env)]
     (assoc ret
       :meta (when m
               (analyze m env))
