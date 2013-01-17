@@ -156,6 +156,17 @@
 
 (defmulti parse (fn [op form env] (keyword op)))
 
+(defmethod parse :do
+  [op [_ & exprs :as form] {:keys [context] :as env}]
+  (let [statements-env (or-eval env :statement)
+        statements (mapv #(analyze % statements-env) (butlast exprs)) ; take out return expr
+        ret (if (<= (count exprs) 1)
+              (analyze (first exprs) env)
+              (analyze (last exprs) (assoc env :context (if (= :statement context) :statement :return))))]
+    {:op         :do
+     :statements statements
+     :ret        ret}))
+
 (extend-protocol Analyzable
 
   ISeq
