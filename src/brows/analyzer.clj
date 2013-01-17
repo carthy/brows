@@ -123,8 +123,8 @@
 
   Symbol
   (-analyze [form env]
-    (if-let [local-binding (get-in env [:locals form])] ; assumes form is not namespace qualified
-                                                        ; we don't check here since we check when parsing let*
+    (if-let [local-binding (local-binding env form)] ; assumes form is not namespace qualified
+                                                     ; we don't check here since we check when parsing let*
       {:op    :local
        :local local-binding}
       (if-let [v (resolve-var env form)]
