@@ -160,12 +160,10 @@
   [op [_ & exprs :as form] {:keys [context] :as env}]
   (let [statements-env (or-eval env :statement)
         statements (mapv #(analyze % statements-env) (butlast exprs)) ; take out return expr
-        ret (if (<= (count exprs) 1)
-              (analyze (first exprs) env)
-              (analyze (last exprs) (assoc env :context (if (= :statement context) :statement :return))))]
+        ret-expr (if (<= (count exprs) 1) first last)]
     {:op         :do
      :statements statements
-     :ret        ret}))
+     :ret        (analyze (ret-expr exprs) env)}))
 
 (extend-protocol Analyzable
 
