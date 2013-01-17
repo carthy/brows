@@ -10,6 +10,8 @@
 (defrecord ns [name aliases mappings required])
 (def namespaces (atom {'carthy.core (map->ns {:name 'carthy.core})}))
 
+(defrecord var [root name ns])
+
 (declare analyze)
 (defprotocol Analyzable
   ;; env is a map containing:
@@ -94,6 +96,19 @@
   (let [curr-ns (get @namespaces ns)
         sym (or (get (:aliases curr-ns) sym) sym)]
     (get @namespaces sym)))
+
+(defn resolve-var [{:keys [namespace] :as env} sym]
+  (if-let [ns (namespace sym)]
+    (if-let [the-ns (find-ns (symbol ns))]
+      (let [var (get (:mappings the-ns) sym)]
+        (if (and var (= (symbol ns) (:ns var)))
+          (let [m (meta var)]
+            (if-not (and (not= namespace (:ns var))
+                         (:private m))
+              var
+              (ex-info "Var is private" {:var sym})))
+          (ex-info "No such var" {:var sym})))
+      (ex-info "No such namespace" {:ns (symbol ns)}))))
 
 (defn analyze [form env]
   (let [form (if (instance? LazySeq form) ; we need to force evaluation
