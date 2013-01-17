@@ -110,6 +110,23 @@
           (ex-info "No such var" {:var sym})))
       (ex-info "No such namespace" {:ns (symbol ns)}))))
 
+(extend-protocol Analyzable
+
+  Symbol
+  (-analyze [form env]
+    (if-let [local-binding (get-in env [:locals form])] ; assumes form is not namespace qualified
+                                                        ; we don't check here since we check when parsing let*
+      {:op    :local
+       :local local-binding}
+      (if-let [v (resolve-var env sym)]
+        (let [meta (meta v)]
+          (if (:macro meta)
+            (ex-info "Can't take value of a macro" {:macro (:name meta)})
+            ;; will eventually handle :const
+            {:op    :var
+             :var   (resolve-var env form)}))
+        (ex-info "Unable to resolve symbol" {:sym form})))))
+
 (defn analyze [form env]
   (let [form (if (instance? LazySeq form) ; we need to force evaluation
                (or (seq form) ())
