@@ -43,12 +43,10 @@
   nil       :nil
   Object    :const) ; register constants?
 
-(defn ^:private fix-context [env]
-  ;; we can no longer be in statement or return position
-  ;; so only :eval or :expr are ok
-  (if (= :eval (:context env))
+(defn ^:private or-eval [{:keys [context] :as env} ctx]
+  (if (= :eval context)
     env
-    (assoc env :context :expr)))
+    (assoc env :context ctx)))
 
 (defn ^:private keys-type [keys]
   (cond
@@ -66,7 +64,7 @@
 
   IPersistentVector
   (-analyze [form env]
-    (let [items-env (fix-context env)
+    (let [items-env (or-eval env :expr)
           items     (mapv #(analyze % env) form)]
       {:op     :vector
        :items  items
@@ -75,7 +73,7 @@
 
   IPersistentMap
   (-analyze [form env]
-    (let [kv-env    (fix-context env)
+    (let [kv-env    (or-eval env :expr)
           keys      (keys env)
           ks        (mapv #(analyze % kv-env) keys)
           vs        (mapv #(analyze % kv-env) (vals form))
@@ -183,5 +181,5 @@
               (analyze m env))
       :form form
       :env  (if m
-              (fix-context env)
+              (or-eval env :expr)
               env))))
