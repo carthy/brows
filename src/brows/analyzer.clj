@@ -186,6 +186,12 @@
    :field field
    :type  type})
 
+(defmethod parse 'quote
+  [op [_ e :as form] env]
+  {:pre [(= 2 (count form))]}
+  {:op   :const
+   :form e})
+
 (extend-protocol Analyzable
 
   ISeq
