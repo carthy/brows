@@ -165,6 +165,19 @@
      :statements statements
      :ret        (analyze (ret-expr exprs) env)}))
 
+;; will eventually support locals-clearing
+(defmethod parse :if
+  [op [_ test then [& else] :as form] env]
+  {:pre [(or (= 3 (count form))
+             (= 4 (count form)))]}
+  (let [test (analyze test (or-eval env :expr))
+        then (analyze then env)
+        else (analyze else env)]
+    {:op   :if
+     :test test
+     :then then
+     :else else}))
+
 (extend-protocol Analyzable
 
   ISeq
