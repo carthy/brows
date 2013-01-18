@@ -178,6 +178,14 @@
      :then then
      :else else}))
 
+(defmethod parse '.
+  [op [_ type field :as form] env]
+  {:pre [(= 3 (count form))
+         (symbol? field)]}
+  {:op    :field
+   :field field
+   :type  type})
+
 (extend-protocol Analyzable
 
   ISeq
