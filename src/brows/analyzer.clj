@@ -101,48 +101,48 @@
         sym (or (get (:aliases curr-ns) sym) sym)]
     (get @namespaces sym)))
 
-(defn resolve-var [{:keys [namespace] :as env} sym]
+(defn resolve-var [in-ns sym]
   (if-let [ns (namespace sym)]
     (if-let [the-ns (find-ns (symbol ns))]
       (let [var (get (:mappings the-ns) sym)]
         (if (and var (= (symbol ns) (:ns var)))
           (let [m (meta var)]
-            (if-not (and (not= namespace (:ns var))
+            (if-not (and (not= in-ns (:ns var))
                          (:private m))
               var
               (ex-info "Var is private" {:var sym})))
           (ex-info "No such var" {:var sym})))
       (ex-info "No such namespace" {:ns (symbol ns)}))))
 
-(defn local-binding [env form]
-  (get-in env [:locals form]))
+(defn local-binding [{:keys [locals]} form]
+  (get locals form))
 
 (extend-protocol Analyzable
 
   Symbol
-  (-analyze [form env]
+  (-analyze [form {:keys [namespace] :as env}]
     (if-let [local-binding (local-binding env form)] ; assumes form is not namespace qualified
                                                      ; we don't check here since we check when parsing let*
       {:op    :local
        :local local-binding}
-      (if-let [v (resolve-var env form)]
+      (if-let [v (resolve-var namespace form)]
         (let [meta (meta v)]
           (if (:macro meta)
             (ex-info "Can't take value of a macro" {:macro (:name meta)})
             ;; will eventually handle :const
             {:op    :var
-             :var   (resolve-var env form)}))
+             :var   (resolve-var namespace form)}))
         (ex-info "Unable to resolve symbol" {:sym form})))))
 
 (def specials
   '#{if quote def* fn* loop* recur set! do deftype* extend let* letfn* .})
 
-(defn macroexpand-1 [env form]
+(defn macroexpand-1 [form {:keys [namespace] :as env}]
   (let [op (first form)]
     (if (specials op)
       form
       (if-let [v (and (not (local-binding env form))
-                      (resolve-var env op))]
+                      (resolve-var namespace op))]
         (if (:macro (meta v))
           (apply @v env form (rest form)) ; (m &env &form & args)
           (if (symbol? op)
@@ -169,7 +169,7 @@
 
   ISeq
   (-analyze [form env]
-    (let [o (macroexpand-1 form)]
+    (let [o (macroexpand-1 form env)]
       (if (not= o form)
         (analyze o env)
         (let [op (first form)]
@@ -177,6 +177,7 @@
             (ex-info "Can't call nil" {:form form})
             (parse (or (specials op) :invoke) form env))))))) ; will eventually handle inlines
 
+;; we should cache nil, false, true and empty-colls analysis
 (defn analyze [form env]
   (let [form (if (instance? LazySeq form) ; we need to force evaluation
                (or (seq form) ())
