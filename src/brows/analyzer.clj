@@ -154,9 +154,9 @@
                 form))
             form))))))
 
-(defmulti parse (fn [op form env] (keyword op)))
+(defmulti parse (fn [op form env] op))
 
-(defmethod parse :do
+(defmethod parse 'do
   [op [_ & exprs :as form] {:keys [context] :as env}]
   (let [statements-env (or-eval env :statement)
         statements (mapv #(analyze % statements-env) (butlast exprs)) ; take out return expr
@@ -166,7 +166,7 @@
      :ret        (analyze (ret-expr exprs) env)}))
 
 ;; will eventually support locals-clearing
-(defmethod parse :if
+(defmethod parse 'if
   [op [_ test then [& else] :as form] env]
   {:pre [(or (= 3 (count form))
              (= 4 (count form)))]}
@@ -188,7 +188,7 @@
         (let [op (first form)]
           (if (nil? op)
             (ex-info "Can't call nil" {:form form})
-            (parse (or (specials op) :invoke) form env))))))) ; will eventually handle inlines
+            (parse (or (specials op) 'invoke) form env))))))) ; will eventually handle inlines
 
 ;; we should cache nil, false, true and empty-colls analysis
 (defn analyze [form env]
