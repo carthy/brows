@@ -5,9 +5,10 @@
 
 ;; name: symbol name of the ns
 ;; aliases: map of sym -> ns (or maybe ns-sym?)
-;; mappings: map of sym -> var
+;; defs: map of sym -> var interned in the namespace
+;; referred: map of sym -> var referred by the namespace
 ;; required: set of required namespaces (necessary?)
-(defrecord ns [name aliases mappings required])
+(defrecord ns [name aliases defs referred required])
 (def namespaces (atom {'carthy.core (map->ns {:name 'carthy.core})}))
 
 ;; var would collide with the `var` special form
@@ -104,14 +105,13 @@
 (defn resolve-var [in-ns sym]
   (if-let [ns (namespace sym)]
     (if-let [the-ns (find-ns (symbol ns))]
-      (let [var (get (:mappings the-ns) sym)]
-        (if (and var (= (symbol ns) (:ns var)))
-          (let [m (meta var)]
-            (if-not (and (not= in-ns (:ns var))
-                         (:private m))
-              var
-              (ex-info "Var is private" {:var sym})))
-          (ex-info "No such var" {:var sym})))
+      (if-let [var (get (:defs the-ns) sym)]
+        (let [m (meta var)]
+          (if-not (and (not= in-ns (:ns var))
+                       (:private m))
+            var
+            (ex-info "Var is private" {:var sym})))
+        (ex-info "No such var" {:var sym}))
       (ex-info "No such namespace" {:ns (symbol ns)}))))
 
 (defn local-binding [{:keys [locals]} form]
