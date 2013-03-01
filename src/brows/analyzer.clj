@@ -76,8 +76,9 @@
   (-analyze [form env]
     (let [kv-env    (or-eval env :expr)
           keys      (keys env)
+          vals      (vals form)
           ks        (mapv #(analyze % kv-env) keys)
-          vs        (mapv #(analyze % kv-env) (vals form))
+          vs        (mapv #(analyze % kv-env) vals)
           keys-type (keys-type keys)]
       {:op        :map
        :keys      ks
