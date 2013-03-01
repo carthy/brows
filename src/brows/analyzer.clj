@@ -31,6 +31,9 @@
        {:op      ~op
         :literal true})))
 
+(defn ^:private analyze-in-env [env]
+  (fn [form] (analyze form env)))
+
 (defmacro literals-dispatch [& forms]
   `(do
      ~@(map #(apply literal-dispatch %) (partition 2 forms))))
@@ -66,7 +69,7 @@
   IPersistentVector
   (-analyze [form env]
     (let [items-env (or-eval env :expr)
-          items     (mapv #(analyze % env) form)]
+          items     (mapv (analyze-in-env env) form)]
       {:op     :vector
        :items  items
        :const  (and (every? :literal items) ; this will probably be useless and even wrong
@@ -77,8 +80,7 @@
     (let [kv-env    (or-eval env :expr)
           keys      (keys env)
           vals      (vals form)
-          ks        (mapv #(analyze % kv-env) keys)
-          vs        (mapv #(analyze % kv-env) vals)
+          [ks vs]   (map (partial mapv (analyze-in-env kv-env)) [keys vals])
           keys-type (keys-type keys)]
       {:op        :map
        :keys      ks
@@ -160,7 +162,8 @@
 (defmethod parse 'do
   [op [_ & exprs :as form] {:keys [context] :as env}]
   (let [statements-env (or-eval env :statement)
-        statements (mapv #(analyze % statements-env) (butlast exprs)) ; take out return expr
+        statements (mapv (analyze-in-env statements-env)
+                         (butlast exprs)) ; take out return expr
         ret-expr (if (<= (count exprs) 1) first last)]
     {:op         :do
      :statements statements
