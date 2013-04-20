@@ -1,7 +1,8 @@
 (ns brows.analyzer
   (:refer-clojure :exclude [macroexpand-1 ns find-ns])
   (:import (clojure.lang IPersistentVector IPersistentMap Keyword IDeref
-                         ISeq IPersistentSet PersistentQueue Symbol LazySeq)))
+                         ISeq IPersistentSet PersistentQueue Symbol LazySeq
+                         IPersistentCollection)))
 
 ;; name: symbol name of the ns
 ;; aliases: map of sym -> ns (or maybe ns-sym?)
@@ -63,11 +64,29 @@
     :else
     :complex))
 
-;; must check for empty
+(defprotocol AnalyzableColl
+  (-analyze-coll [this env]))
+
+(defn analyze-empty [form env]
+  {:op (case (class form)
+         IPersistentVector :empty-vector
+         IPersistentMap    :empty-map
+         IPersistentSet    :empty-set
+         IPeristentQueue   :empty-queue
+         IPersistentList   :empty-list)})
+
 (extend-protocol Analyzable
 
-  IPersistentVector
+  IPersistentCollection
   (-analyze [form env]
+    (if (empty? form)
+      (analyze-empty form env)
+      (-analyze-coll form env)))) ;; IRecord && IType?
+
+(extend-protocol AnalyzableColl
+
+  IPersistentVector
+  (-analyze-coll [form env]
     (let [items-env (or-eval env :expr)
           items     (mapv (analyze-in-env env) form)]
       {:op     :vector
@@ -76,7 +95,7 @@
                     (not (meta form)))}))   ; if we support metadata for every type
 
   IPersistentMap
-  (-analyze [form env]
+  (-analyze-coll [form env]
     (let [kv-env    (or-eval env :expr)
           keys      (keys env)
           vals      (vals form)
@@ -91,14 +110,14 @@
                        (not (meta form)))}))
 
   IPersistentSet
-  (-analyze [form env]
-    (assoc (-analyze (vec form) env)
+  (-analyze-coll [form env]
+    (assoc (-analyze-coll (vec form) env)
       :op :set))
 
   PersistentQueue
-  (-analyze [form env]
-    (assoc (-analyze (vec form) env)
-      :op :queue))) ;; IRecord && IType?
+  (-analyze-coll [form env]
+    (assoc (-analyze-coll (vec form) env)
+      :op :queue)))
 
 (defn find-ns [ns sym]
   (let [curr-ns (get @namespaces ns)
