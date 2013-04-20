@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [macroexpand-1 ns find-ns])
   (:import (clojure.lang IPersistentVector IPersistentMap Keyword IDeref
                          ISeq IPersistentSet PersistentQueue Symbol LazySeq
-                         IPersistentCollection)))
+                         IPersistentCollection IPersistentList)))
 
 ;; name: symbol name of the ns
 ;; aliases: map of sym -> ns (or maybe ns-sym?)
@@ -67,20 +67,47 @@
 (defprotocol AnalyzableColl
   (-analyze-coll [this env]))
 
-(defn analyze-empty [form env]
-  {:op (case (class form)
-         IPersistentVector :empty-vector
-         IPersistentMap    :empty-map
-         IPersistentSet    :empty-set
-         IPeristentQueue   :empty-queue
-         IPersistentList   :empty-list)})
+(defprotocol AnalyzableEmpty
+  (-analyze-empty [this env]))
+
+(extend-protocol AnalyzableEmpty
+
+  IPersistentVector
+  (-analyze-empty [this env]
+    {:op :empty-vector
+     :form this
+     :env env})
+
+  IPersistentMap
+  (-analyze-empty [this env]
+    {:op :empty-map
+     :form this
+     :env env})
+
+  IPersistentSet
+  (-analyze-empty [this env]
+    {:op :empty-set
+     :form this
+     :env env})
+
+  PersistentQueue
+  (-analyze-empty [this env]
+    {:op :empty-queue
+     :form this
+     :env env})
+
+  IPersistentList
+  (-analyze-empty [this env]
+    {:op :empty-list}
+    :form this
+    :env env))
 
 (extend-protocol Analyzable
 
   IPersistentCollection
   (-analyze [form env]
     (if (empty? form)
-      (analyze-empty form env)
+      (-analyze-empty form env)
       (-analyze-coll form env)))) ;; IRecord && IType?
 
 (extend-protocol AnalyzableColl
