@@ -124,7 +124,7 @@
   IPersistentMap
   (-analyze-coll [form env]
     (let [kv-env    (or-eval env :expr)
-          keys      (keys env)
+          keys      (keys form)
           vals      (vals form)
           [ks vs]   (map (partial mapv (analyze-in-env kv-env)) [keys vals])
           keys-type (keys-type keys)]
@@ -132,8 +132,8 @@
        :keys      ks
        :vals      vs
        :keys-type keys-type
-       :const     (and (= :const keys-type)
-                       (every? :literal vals)
+       :const     (and (not= :complex keys-type)
+                       (every? :literal vs)
                        (not (meta form)))}))
 
   IPersistentSet
