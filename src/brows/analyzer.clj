@@ -254,7 +254,6 @@
             (ex-info "Can't call nil" {:form form})
             (parse (or (specials op) 'invoke) form env))))))) ; will eventually handle inlines
 
-;; we should cache nil, false, true and empty-colls analysis
 (defn analyze [form env]
   (let [form (if (instance? LazySeq form) ; we need to force evaluation
                (or (seq form) ())
@@ -263,10 +262,12 @@
         m (meta form)
         env (or (:env ret) env)
         form (or (:form ret) form)]
-    (assoc ret
-      :meta (when m
-              (analyze m env))
-      :form form
-      :env  (if m
-              (or-eval env :expr)
-              env))))
+    (cond-> (assoc ret
+               :form form
+               :env  env)
+            m (as-> expr
+                    {:op   :meta
+                     :meta (analyze m (or-eval env :expr))
+                     :form (:form expr)
+                     :expr (update-in expr [:env] or-eval :expr)
+                     :env env}))))
